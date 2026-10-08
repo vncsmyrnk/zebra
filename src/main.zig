@@ -15,13 +15,10 @@ fn usage() void {
     , .{});
 }
 
-fn cat(io: Io, reader: *Io.File.Reader) !void {
+fn cat(reader: *Io.File.Reader, writer: *Io.Writer) !void {
     while (reader.interface.takeDelimiterInclusive('\n')) |line| {
-        var stdout_buffer: [1024]u8 = undefined;
-        var stdout_file_writer: Io.File.Writer = .init(.stdout(), io, &stdout_buffer);
-        const stdout_writer = &stdout_file_writer.interface;
-        _ = try stdout_writer.write(line);
-        try stdout_writer.flush();
+        _ = try writer.write(line);
+        try writer.flush();
     } else |err| switch (err) {
         error.EndOfStream => {},
         else => |e| return e,
@@ -33,10 +30,14 @@ pub fn main(init: std.process.Init) !void {
     const arena = init.arena.allocator();
     const args = try init.minimal.args.toSlice(arena);
 
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_file_writer: Io.File.Writer = .init(.stdout(), io, &stdout_buffer);
+    const stdout_writer = &stdout_file_writer.interface;
+
     if (args.len < 2) {
         var stdin_buffer: [1024]u8 = undefined;
         var stdin_reader = Io.File.stdin().reader(io, &stdin_buffer);
-        try cat(io, &stdin_reader);
+        try cat(&stdin_reader, stdout_writer);
         return;
     }
 
@@ -54,8 +55,17 @@ pub fn main(init: std.process.Init) !void {
     i = 1;
     while (i < args.len) : (i += 1) {
         var buffer: [1024]u8 = undefined;
-        var file = try Io.Dir.cwd().openFile(io, args[i], .{});
+        var file = Io.Dir.cwd().openFile(io, args[i], .{}) catch |err| switch (err) {
+            error.FileNotFound => {
+                std.debug.print("no such file or directory.\n", .{});
+                std.process.exit(1);
+            },
+            else => |e| {
+                std.debug.print("unexpected error: {s}\n", .{@errorName(e)});
+                std.process.exit(1);
+            },
+        };
         var reader = file.reader(io, &buffer);
-        try cat(io, &reader);
+        try cat(&reader, stdout_writer);
     }
 }
