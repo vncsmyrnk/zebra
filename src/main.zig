@@ -2,8 +2,6 @@ const std = @import("std");
 const Io = std.Io;
 const mem = std.mem;
 
-const zebra = @import("zebra");
-
 fn usage() void {
     std.debug.print(
         \\Usage: zebra [options] [file]...
