@@ -65,6 +65,17 @@ pub fn main(init: std.process.Init) !void {
                 std.process.exit(1);
             },
         };
+
+        if (file.stat(io)) |st| {
+            if (st.kind == .directory) {
+                std.debug.print("{s}: is a directory.\n", .{args[i]});
+                std.process.exit(1);
+            }
+        } else |err| {
+            std.debug.print("unexpected error: {s}\n", .{@errorName(err)});
+            std.process.exit(1);
+        }
+
         var reader = file.reader(io, &buffer);
         try cat(&reader, stdout_writer);
     }
